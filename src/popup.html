@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../styles/styles.css">
+    <title>YouTube Transcript Extractor</title>
+</head>
+
+<body>
+    <div class="container">
+        <div class="transcript-header">
+            <div class="header-title">YouTube Transcript Extractor</div>
+            <div class="button-container">
+                <button id="extract-transcript" class="button">Get Transcript</button>
+                <button id="copy-transcript" class="button">Copy</button>
+
+
+            </div>
+        </div>
+        <div id="video-info" class="video-info">
+            <div class="languages-box">
+                <div id="transcript-languages"></div>
+            </div>
+        </div>
+        <div id="transcript-output" class="transcript-box"></div>
+        <p id="message" class="message"></p>
+    </div>
+    <script src="popup.js"></script>
+    <!DOCTYPE html>
+<html>
+<head>
+  <style>
+    /* Modern YouTube-inspired styling */
+    body {
+      width: 350px;
+      padding: 0;
+      margin: 0;
+      font-family: 'YouTube Noto', Roboto, Arial, sans-serif;
+    }
+    .container {
+      padding: 16px;
+    }
+    #summary-btn {
+      background: #FF0000;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      width: 100%;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      text-transform: uppercase;
+      transition: background 0.2s;
+    }
+    #summary-btn:hover { background: #CC0000; }
+    #summary-btn:disabled {
+      background: #CCCCCC;
+      cursor: not-allowed;
+    }
+    #summary-result {
+      display: none;
+      margin-top: 16px;
+      padding: 16px;
+      background: #F9F9F9;
+      border-radius: 8px;
+      color: #030303;
+    }
+    .spinner {
+      border: 3px solid rgba(255,0,0,0.1);
+      border-top: 3px solid #FF0000;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .status-text {
+      text-align: center;
+      margin: 8px 0;
+      color: #606060;
+    }
+    .error {
+      color: #FF5349;
+      padding: 12px;
+      background: #FEECEB;
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .success {
+      color: #1DB954;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <button id="summary-btn">Get Transcript Summary</button>
+    <div id="summary-result"></div>
+  </div>
+
+  <script>
+    document.getElementById('summary-btn').addEventListener('click', async function() {
+      const btn = this;
+      const resultDiv = document.getElementById('summary-result');
+      
+      // Reset UI
+      btn.disabled = true;
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `
+        <div class="spinner"></div>
+        <div class="status-text">Connecting to YouTube...</div>
+      `;
+
+      try {
+        // [1] Get active YouTube tab
+        const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+        if (!tab?.url?.includes('youtube.com/watch')) {
+          throw new Error('Please open a YouTube video page first');
+        }
+
+        // [2] Use declarativeContent API to check for transcript
+        resultDiv.innerHTML = `
+          <div class="spinner"></div>
+          <div class="status-text">Looking for transcript...</div>
+        `;
+
+        const transcript = await new Promise((resolve) => {
+          chrome.tabs.sendMessage(tab.id, {action: "checkTranscript"}, (response) => {
+            if (chrome.runtime.lastError) {
+              resolve(null);
+            } else {
+              resolve(response?.transcript);
+            }
+          });
+        });
+
+        // Fallback to direct DOM inspection if messaging fails
+        if (!transcript) {
+          const injectionResult = await chrome.scripting.executeScript({
+            target: {tabId: tab.id},
+            func: () => {
+              try {
+                // Method 1: Transcript panel content
+                const panel = document.querySelector('ytd-transcript-body-renderer');
+                if (panel?.textContent?.length > 100) return panel.textContent;
+                
+                // Method 2: Captions
+                const captions = Array.from(document.querySelectorAll('.caption-visual-line'));
+                if (captions.length > 3) return captions.map(c => c.textContent).join('\n');
+                
+                return null;
+              } catch (e) {
+                return null;
+              }
+            }
+          });
+          
+          if (!injectionResult[0]?.result) {
+            throw new Error(`
+              Couldn't find transcript. Please:
+              1. Open the transcript panel manually
+              2. Wait for it to load
+              3. Try again
+            `);
+          }
+        }
+
+        // [3] Generate summary
+        resultDiv.innerHTML = `
+          <div class="spinner"></div>
+          <div class="status-text">Generating summary...</div>
+        `;
+
+        const summary = await generateSummary(transcript || injectionResult[0].result);
+        
+        resultDiv.innerHTML = `
+          <div style="font-weight:500; font-size:16px; margin-bottom:12px; color:#FF0000;">
+            YouTube Summary
+          </div>
+          <div style="line-height:1.5;">
+            ${summary}
+          </div>
+          <div style="margin-top:16px; font-size:13px; color:#606060;">
+            ℹ️ For best results, open transcript panel first
+          </div>
+        `;
+
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="error">
+            <div style="font-weight:500; margin-bottom:8px;">⚠️ ${error.message}</div>
+            <div style="font-size:13px;">
+              <strong>Try this:</strong>
+              <ol style="padding-left:20px; margin-top:8px;">
+                <li>Refresh YouTube (Ctrl+F5)</li>
+                <li>Click <img src="assets/transcript-icon.png" width="14" style="vertical-align:middle;"> Transcript button</li>
+                <li>Reload extension</li>
+              </ol>
+            </div>
+          </div>
+        `;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    function generateSummary(text) {
+      try {
+        const lines = text.split('\n')
+          .filter(line => line.trim().length > 30)
+          .filter(line => !/subscribe|http|@|#|\.com|advertisement|sponsor/i.test(line))
+          .slice(0, 5)
+          .map(line => `• ${line.trim()}`)
+          .join('<br><br>');
+        
+        return lines || 'Could not generate summary from this transcript';
+      } catch (e) {
+        return 'Summary generation failed';
+      }
+    }
+  </script>
+</body>
+</html>
+</body>
+
+</html>
