@@ -1,6 +1,6 @@
 // Constants for elements and API base URL
 // Groq API Configuration - Add at the top with other constants
-const GEMINI_API_KEY = 'AIzaSyBe9V06w-ipBVArrkKmr-8OGXuLdAQnZaY'; // 
+const GEMINI_API_KEY = 'api key'; // 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
 const messageBox = document.getElementById('message');
 const transcriptOutput = document.getElementById('transcript-output');
