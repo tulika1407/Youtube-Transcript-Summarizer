@@ -1,13 +1,15 @@
 // Constants for elements and API base URL
 // Groq API Configuration - Add at the top with other constants
-const GEMINI_API_KEY = 'AIzaSyBe9V06w-ipBVArrkKmr-8OGXuLdAQnZaY'; // 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+const GROQ_API_KEY = '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'; // Replace with your key
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const messageBox = document.getElementById('message');
 const transcriptOutput = document.getElementById('transcript-output');
 const transcriptLanguages = document.getElementById('transcript-languages');
 const extractButton = document.getElementById('extract-transcript');
 const copyButton = document.getElementById('copy-transcript');
 const apiBaseUrl = 'https://transcript.andreszenteno.com';
+const geminiBtn = document.getElementById('gemini-btn');
+
 
 // Global variables for transcript and video data
 let transcript = '';
@@ -21,165 +23,175 @@ copyButton.disabled = true;
 
 // Check if we are on a valid YouTube page or embedded video
 chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-    const tab = tabs[0];
-    videoUrl = await getVideoUrl(tab);  // Pass tab.id to get the video URL
-    if (videoUrl) {
-        extractButton.disabled = false;
-    } else {
-        messageBox.style.display = 'block';
-        messageBox.innerText = 'No YouTube video found on this page.';
-    }
+  const tab = tabs[0];
+  videoUrl = await getVideoUrl(tab);  // Pass tab.id to get the video URL
+  if (videoUrl) {
+    extractButton.disabled = false;
+  } else {
+    messageBox.style.display = 'block';
+    messageBox.innerText = 'No YouTube video found on this page.';
+  }
 });
 
 // Function to extract video URL (either direct or embedded)
 // Function to extract video URL (either direct or embedded)
 async function getVideoUrl(tab) {
-    const url = tab.url || '';  // Ensure `url` is a string
-    if (typeof url !== 'string') {
-        return null;  // Return null if url is not a string
-    }
+  const url = tab.url || '';  // Ensure `url` is a string
+  if (typeof url !== 'string') {
+    return null;  // Return null if url is not a string
+  }
 
-    if (url.includes('youtube.com/watch?v=') || url.includes('youtube.com/shorts') || url.includes('youtu.be/')) {
-        return url;  // Direct YouTube video URL
-    } else {
-        // Check for embedded video
-        const iframeSrc = await getEmbeddedVideoUrl(tab.id);
-        if (iframeSrc) {
-            const videoId = iframeSrc.split('embed/')[1]?.split('?')[0];
-            return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
-        }
+  if (url.includes('youtube.com/watch?v=') || url.includes('youtube.com/shorts') || url.includes('youtu.be/')) {
+    return url;  // Direct YouTube video URL
+  } else {
+    // Check for embedded video
+    const iframeSrc = await getEmbeddedVideoUrl(tab.id);
+    if (iframeSrc) {
+      const videoId = iframeSrc.split('embed/')[1]?.split('?')[0];
+      return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
     }
-    return null;
+  }
+  return null;
 }
 
 
 // Function to get the embedded video URL (runs within the page)
 async function getEmbeddedVideoUrl(tabId) {
-    return new Promise((resolve) => {
-        chrome.scripting.executeScript({
-            target: { tabId: tabId },  // Corrected this line to use tab.id, not the URL
-            func: extractEmbeddedVideoUrl
-        }, (results) => resolve(results[0]?.result || null));
-    });
+  return new Promise((resolve) => {
+    chrome.scripting.executeScript({
+      target: { tabId: tabId },  // Corrected this line to use tab.id, not the URL
+      func: extractEmbeddedVideoUrl
+    }, (results) => resolve(results[0]?.result || null));
+  });
 }
 
 // Function to extract embedded YouTube video URL (runs in the page)
 function extractEmbeddedVideoUrl() {
-    const iframe = Array.from(document.querySelectorAll('iframe')).find(iframe => iframe.src.includes('youtube.com/embed/'));
-    return iframe ? iframe.src : null;
+  const iframe = Array.from(document.querySelectorAll('iframe')).find(iframe => iframe.src.includes('youtube.com/embed/'));
+  return iframe ? iframe.src : null;
 }
 
 // Handle extract transcript click event
 extractButton.addEventListener("click", async () => {
-    transcriptOutput.innerHTML = '<div class="spinner-container"><div class="spinner"></div><div class="spinner-text">Fetching transcript... This may take a few seconds.</div></div>';
-    const data = await fetchTranscript(videoUrl);
+  transcriptOutput.innerHTML = '<div class="spinner-container"><div class="spinner"></div><div class="spinner-text">Fetching transcript... This may take a few seconds.</div></div>';
+  const data = await fetchTranscript(videoUrl);
 
-    if (data) {
-        copyButton.disabled = false;
-        transcript = data.transcript;
-        videoTitle = data.title;
-        const languages = data.languages;
-        displayTranscript(languages, data.transcriptLanguageCode);
-    } else {
-        transcriptOutput.innerHTML = 'Error fetching transcript';
-    }
-});
+  if (data) {
+    copyButton.disabled = false;
+    transcript = data.transcript;
+    displayTranscript(data.languages, data.transcriptLanguageCode);
+
+    // 2. THEN open Gemini (new functionality)
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      chrome.tabs.sendMessage(tabs[0].id, {
+        action: "openGemini",
+        text: transcript
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          messageBox.textContent = "Tip: Transcript ready to copy manually!";
+          messageBox.style.color = "blue";
+        } else {
+          messageBox.textContent = "Opened in Gemini! Transcript also shown below";
+          messageBox.style.color = "green";
+        }
+        messageBox.style.display = "block";
+      });
+    });
+    console.log("Transcript:", transcript);
+    videoTitle = data.title;
+    const languages = data.languages;
+    
+    geminiBtn.style.display = 'inline-block';
+
+      // Gemini button click handler
+    geminiBtn.addEventListener('click', () => {
+      const prompt = "Summarize this YouTube transcript in bullet points:\n\n";
+      window.open(
+        'https://gemini.google.com', '_blank'
+      );
+    });   
+    displayTranscript(languages, data.transcriptLanguageCode);
+  } else {
+    transcriptOutput.innerHTML = 'Error fetching transcript';
+  }
+});     
+
 
 // Fetch transcript and languages from API
 async function fetchTranscript(url, lang = '') {
-    try {
-        const response = await fetch(`${apiBaseUrl}/simple-transcript-v3`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, lang })
-        });
+  try {
+    const response = await fetch(`${apiBaseUrl}/simple-transcript-v3`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, lang })
+    });
 
-        if (!response.ok) throw new Error('Failed to fetch transcript');
+    if (!response.ok) throw new Error('Failed to fetch transcript');
 
-        return await response.json();
-    } catch (error) {
-        messageBox.innerText = `Error: ${error.message}`;
-        messageBox.style.display = 'block';
-        return null;
-    }
+    return await response.json();
+  } catch (error) {
+    messageBox.innerText = `Error: ${error.message}`;
+    messageBox.style.display = 'block';
+    return null;
+  }
 }
 
 // Display transcript and language dropdown
 function displayTranscript(languages, currentLangCode = '') {
-    transcriptOutput.innerHTML = `<strong>${videoTitle}</strong><br><br>${transcript}`;
-    handleLanguageSelection(languages, currentLangCode);
+  transcriptOutput.innerHTML = `<strong>${videoTitle}</strong><br><br>${transcript}`;
+  handleLanguageSelection(languages, currentLangCode);
 }
 
 
 // Handle language selection for transcripts
 function handleLanguageSelection(languages, currentLangCode = '') {
-    transcriptLanguages.innerHTML = '';  // Clear previous languages
-    if (languages && languages.length > 0) {
-        const select = document.createElement('select');
-        select.innerHTML = '<option value="">Available languages</option>';
+  transcriptLanguages.innerHTML = '';  // Clear previous languages
+  if (languages && languages.length > 0) {
+    const select = document.createElement('select');
+    select.innerHTML = '<option value="">Available languages</option>';
 
-        languages.forEach(lang => {
-            const option = document.createElement('option');
-            option.value = lang.code;
-            option.textContent = lang.name;
+    languages.forEach(lang => {
+      const option = document.createElement('option');
+      option.value = lang.code;
+      option.textContent = lang.name;
 
-            // Select the option if it matches the current transcript language
-            if (lang.code === currentLangCode) {
-                option.selected = true;
-            }
+      // Select the option if it matches the current transcript language
+      if (lang.code === currentLangCode) {
+        option.selected = true;
+      }
 
-            select.appendChild(option);
-        });
+      select.appendChild(option);
+    });
 
-        transcriptLanguages.appendChild(select);
+    transcriptLanguages.appendChild(select);
 
-        select.addEventListener('change', async (event) => {
-            const selectedLanguage = event.target.value;
-            if (selectedLanguage) {
-                transcriptOutput.innerHTML = '<div class="spinner-container"><div class="spinner"></div></div>';
-                const data = await fetchTranscript(videoUrl, selectedLanguage);
-                if (data) {
-                    transcript = data.transcript;  // Update the transcript variable
-                    displayTranscript(data.languages, data.transcriptLanguageCode);  // Pass the current language code
-                }
-            }
-        });
-    }
+    select.addEventListener('change', async (event) => {
+      const selectedLanguage = event.target.value;
+      if (selectedLanguage) {
+        transcriptOutput.innerHTML = '<div class="spinner-container"><div class="spinner"></div></div>';
+        const data = await fetchTranscript(videoUrl, selectedLanguage);
+        if (data) {
+          transcript = data.transcript;  // Update the transcript variable
+          alert("Reached Gemini code! Transcript length: " + transcript.length);
+          window.open("https://gemini.google.com/app", '_blank');
+          displayTranscript(data.languages, data.transcriptLanguageCode);  // Pass the current language code
+        }
+      }
+    });
+  }
 }
 
 // Handle copy transcript button click
 copyButton.addEventListener('click', async () => {
-    if (transcript) {
-        await navigator.clipboard.writeText(`${videoTitle}\n\n${transcript}`);
-        copyButton.innerText = 'Copied!';
-        setTimeout(() => {
-            copyButton.innerText = 'Copy';
-        }, 2000);
-    }
-});
-// ========== REPLACE GROQ WITH GEMINI ========== //
-async function summarizeTranscript(text) {
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=YOUR_GEMINI_KEY`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: `Summarize in bullet points:\n\n${text}` }]
-          }]
-        })
-      }
-    );
-    const data = await response.json();
-    return data.candidates[0]?.content?.parts[0]?.text || "No summary available";
-  } catch (error) {
-    return `Error: ${error.message}`;
+  if (transcript) {
+    await navigator.clipboard.writeText(`${videoTitle}\n\n${transcript}`);
+    copyButton.innerText = 'Copied!';
+    setTimeout(() => {
+      copyButton.innerText = 'Copy';
+    }, 2000);
   }
-}
-// ========== END OF REPLACEMENT ========== //
-document.addEventListener('DOMContentLoaded', function() {
+});
+document.addEventListener('DOMContentLoaded', function () {
   const btn = document.getElementById('summary-btn');
   const resultDiv = document.getElementById('summary-result');
 
@@ -189,14 +201,14 @@ document.addEventListener('DOMContentLoaded', function() {
     retryCount: 0
   };
 
-  btn.addEventListener('click', async function() {
+  btn.addEventListener('click', async function () {
     btn.disabled = true;
     resultDiv.style.display = 'block';
     resultDiv.innerHTML = '<div class="spinner"></div><div>Initializing...</div>';
 
     try {
       // Get active YouTube tab
-      const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.url?.includes('youtube.com/watch')) {
         throw new Error('Please open a YouTube video first');
       }
@@ -204,7 +216,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Execute in YouTube tab
       resultDiv.innerHTML = '<div class="spinner"></div><div>Accessing YouTube...</div>';
       const injectionResult = await chrome.scripting.executeScript({
-        target: {tabId: tab.id},
+        target: { tabId: tab.id },
         func: (state) => {
           // Function to actually check for transcript content
           const checkForContent = () => {
@@ -308,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function() {
       .filter(line => line.trim().length > 30)
       .filter(line => !/subscribe|http|@|#|\.com|advertisement|sponsor/i.test(line))
       .slice(0, 5);
-    
+
     resultDiv.innerHTML = `
       <div style="font-weight:bold; color:#4285f4;">Summary:</div>
       <div style="margin-top:8px; line-height:1.5;">
