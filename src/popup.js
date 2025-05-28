@@ -1,6 +1,6 @@
 // Constants for elements and API base URL
 // Groq API Configuration - Add at the top with other constants
-const GROQ_API_KEY = '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'; // Replace with your key
+const GROQ_API_KEY = 'api'; // Replace with your key
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const messageBox = document.getElementById('message');
 const transcriptOutput = document.getElementById('transcript-output');
