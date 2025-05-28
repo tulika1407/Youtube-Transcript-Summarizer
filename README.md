@@ -1,54 +1,62 @@
-📚 YouTube Transcript Summarizer
-Skip the fluff, get the essence - This Chrome extension instantly extracts and summarizes YouTube video transcripts using AI.
+# 🎬 YouTube Transcript Summarizer
 
-✨ Why I Built This
-As a lifelong learner, I found myself wasting hours watching lengthy videos just to extract a few key points. This extension solves that by:
+A Chrome extension that extracts YouTube video transcripts and summarizes them using AI (Gemini or ChatGPT).
 
-Saving time - Get summaries in seconds
+## ✨ Features
 
-Cutting through filler - AI extracts core ideas
+- **One-click transcript extraction** from any YouTube video
+- **Dual AI integration** (Gemini & ChatGPT)
+- **Smart formatting** with key points extraction
+- **Multi-language support** for transcripts
+- **Copy-paste workflow** optimized for AI platforms
 
-Supporting multi-language content
+## 🛠️ Installation
 
-Working seamlessly right in your browser
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/youtube-transcript-summarizer.git
+2. Load in Chrome:
 
-🛠️ How It Works
-Install the extension (2 minutes)
+Navigate to chrome://extensions
 
-Open any YouTube video
+Enable "Developer mode" (toggle top-right)
 
-Click to get:
+Click "Load unpacked" and select the extension folder
 
-Full transcript (for reference)
+🚀 Usage
+Open a YouTube video
 
-Concise AI summary (for quick understanding)
+Click the extension icon
 
-🚀 Installation
-bash
-git clone https://github.com/yourusername/youtube-transcript-summarizer.git
-cd youtube-transcript-summarizer
-Then in Chrome:
+Use the buttons:
 
-Go to chrome://extensions
+Get Transcript: Fetches full transcript
 
-Enable Developer mode (top-right toggle)
+Copy: Copies transcript to clipboard
 
-Click Load unpacked and select the folder
+Gemini/ChatGPT: Opens AI with prefilled prompt
 
-🔑 Setup
-Add your API key in popup.js:
+🌟 Advanced Features
+Feature : 	    Gemini	            ChatGPT
+Auto-copy:	      ✅	                ✅
+One-click:  open	Via messaging	    Direct URL
+Prompt:  	    Bullet points	       Bullet points
 
-javascript
-const GEMINI_API_KEY = 'your_key_here'; // From Google AI Studio
-💡 Pro Tips
-For best results, open the transcript panel manually first
+🔧 Technical Stack
+Frontend: HTML5, CSS3, JavaScript (ES6+)
 
-Works great for:
+Chrome APIs:
 
-Lecture videos
+tabs for URL detection
 
-Tutorials
+clipboard for copy functionality
 
-Podcast episodes
+scripting for content injection
 
-Meeting recordings
+AI Integration:
+
+Gemini (via Google's interface)
+
+ChatGPT (via OpenAI's web app)
+
+
